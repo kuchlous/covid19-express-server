@@ -5,35 +5,55 @@ const port = 3000
 const { Client } = require('elasticsearch')
 const client = new Client({ host: 'http://52.172.26.84' })
 
-app.get('/', (req, res) => {
-    client.ping().then((result) => console.log(result))
-    client.search({index: "rb_locations",
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "http://localhost:4200"); // update to match the domain you will make the request from
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+
+entitySearch = function(res, cityId, level, menuIds, top_left, bottom_right) {
+    let filter = [{terms: {menuId: menuIds}}]
+    if (cityId) {
+        filter.push({term: {cityId: cityId}})
+    }
+    if (top_left && bottom_right) {
+        filter.push({geo_bounding_box:
+            {
+                top_left: top_left,
+                bottom_right: bottom_right
+            },
+        });
+    }
+    client.search({
+        index: "rb_locations",
+        size: 100,
+        _source: ["id", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId"],
         body: {
             query: {
                 bool: {
-                    must: {match_all: {}},
-                    filter: {
-                        bool: {
-                            must: [
-                                {term: {cityId: 1}},
-                                {terms: {menuId: [117, 125, 93]}},
-                                {
-                                     geo_bounding_box: {
-                                         "rb_pin": {
-                                             bottom_left: {lat: 11.9796734, lon: 77.5890556},
-                                             top_right: {lat: 13.1909909, lon: 76.3427979}
-                                         }
-                                     }
-                                }
-                            ]
-                        }
-                    }
+                    filter: filter
                 }
             },
-            size: 100,
-            _source: ["id", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId"]
-            }
-    }).then((body) => res.json(body.hits.hits))
+        }
+    }).then((body) => {
+        this.hits = body.hits.hits
+        console.log("No results =" + hits.length)
+        res.json(body.hits.hits)
+        // console.log(this.hits)
+    })
+}
+
+app.get('/', (req, res, next) => {
+    console.log(req.query);
+    let cityId = req.query.cityId;
+    let level = req.query.level;
+    let menuIds = req.query.menuData;
+    let top_left = req.query.top_left;
+    let bottom_right = req.query.bottom_right;
+    // latitude = req.query.latitude
+    // longitude = req.query.longitude
+    console.log(res, cityId, level, menuIds, top_left, bottom_right)
+    entitySearch(res, cityId, level, menuIds, top_left, bottom_right)
 });
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))
