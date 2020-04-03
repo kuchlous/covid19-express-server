@@ -3,19 +3,31 @@ const app = express()
 const port = 3000
 
 const { Client } = require('elasticsearch')
-const client = new Client({ host: 'http://52.172.26.84' })
+const client = new Client({ host: 'localhost:9200' })
 
-app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "http://localhost:4200"); // update to match the domain you will make the request from
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  next();
+ app.use(function(req, res, next) {
+   res.header("Access-Control-Allow-Origin", "http://localhost:4200"); // update to match the domain you will make the request from
+   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+   next();
 });
 
 entitySearch = function(res, cityId, level, menuIds, top_left, bottom_right) {
-    let filter = [{terms: {menuId: menuIds}}]
+    if (!menuIds || menuIds.length == 0) {
+        res.json({
+		data: [],
+		success: true,
+		message: "Data sent successfully",
+	});
+    }
+
+    let filter = (menuIds instanceof Array) ? 
+            [{terms: {menuId: menuIds}}] :
+            [{term: {menuId: menuIds}}];
+
     if (cityId) {
         filter.push({term: {cityId: cityId}})
     }
+
     if (top_left && bottom_right) {
         filter.push({geo_bounding_box:
             {
@@ -24,9 +36,10 @@ entitySearch = function(res, cityId, level, menuIds, top_left, bottom_right) {
             },
         });
     }
+
     client.search({
         index: "rb_locations",
-        size: 100,
+        size: 1000,
         _source: ["id", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId"],
         body: {
             query: {
@@ -38,13 +51,16 @@ entitySearch = function(res, cityId, level, menuIds, top_left, bottom_right) {
     }).then((body) => {
         this.hits = body.hits.hits
         console.log("No results =" + hits.length)
-        res.json(body.hits.hits)
+        res.json({
+		data: body.hits.hits.map(d => d["_source"]),
+		success: true,
+		message: "Data sent successfully",
+	})
         // console.log(this.hits)
     })
 }
 
-app.get('/', (req, res, next) => {
-    console.log(req.query);
+app.get('/places', (req, res, next) => {
     let cityId = req.query.cityId;
     let level = req.query.level;
     let menuIds = req.query.menuData;
@@ -54,6 +70,7 @@ app.get('/', (req, res, next) => {
     // longitude = req.query.longitude
     console.log(res, cityId, level, menuIds, top_left, bottom_right)
     entitySearch(res, cityId, level, menuIds, top_left, bottom_right)
+    return 0;
 });
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))
