@@ -16,7 +16,7 @@ entitySearch = function(res, cityId, level, menuIds, top_left, bottom_right) {
     if (cityId) {
         filter.push({term: {cityId: cityId}})
     }
-    if (top_left && bottom_right) {
+    if (top_left.lat && bottom_right.lat) {
         filter.push({geo_bounding_box:
             {
                 top_left: top_left,
@@ -48,8 +48,8 @@ app.get('/', (req, res, next) => {
     let cityId = req.query.cityId;
     let level = req.query.level;
     let menuIds = req.query.menuData;
-    let top_left = req.query.top_left;
-    let bottom_right = req.query.bottom_right;
+    let top_left = {lat: req.query.topLeftLat, lon: req.query.topLeftLon}
+    let bottom_right = {lat:req.query.bottomRightLat, lon: req.query.bottomRightLon};
     // latitude = req.query.latitude
     // longitude = req.query.longitude
     console.log(res, cityId, level, menuIds, top_left, bottom_right)
