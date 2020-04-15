@@ -56,7 +56,7 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
     client.search({
         index: "rb_locations",
         size: 1000,
-        _source: ["id", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId"],
+        _source: ["id", "name", "category", "subcategory", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId", "address", "impact"],
         body: {
             query: {
                 bool: {
