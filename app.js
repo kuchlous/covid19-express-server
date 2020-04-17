@@ -11,18 +11,11 @@ const client = new Client({ host: 'localhost:9200' })
 //    next();
 // });
 
-entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, longitude, top_left, bottom_right) {
-    if (!menuIds || menuIds.length == 0) {
-        res.json({
-		data: [],
-		success: true,
-		message: "Data sent successfully",
-	});
-    }
+createFilter = function(cityId, menuIds, latitude, localhost, radius, top_left, bottom_right) {
+    // If only one param is sent it comes as a scalar
+    menuIds = (menuIds instanceof Array) ?  menuIds : [menuIds];
 
-    let filter = (menuIds instanceof Array) ?
-            [{terms: {menuId: menuIds}}] :
-            [{term: {menuId: menuIds}}];
+    let filter = [{terms: {menuId: menuIds}}]
 
     if (cityId) {
         filter.push({term: {cityId: cityId}})
@@ -38,6 +31,31 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
 		}
         });
     }
+
+    if (latitude && longitude && radius) {
+        filter.push({
+            geo_distance: {
+                distance: radius,
+                rb_pin: {
+                    lat: latitude,
+                    lon: longitude
+                },
+            }
+        });
+    }
+    return filter;
+}
+
+entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, longitude, radius, top_left, bottom_right) {
+    if (!menuIds || menuIds.length == 0) {
+        res.json({
+		data: [],
+		success: true,
+		message: "Data sent successfully",
+	});
+    }
+
+    let filter = createFilter(cityId, menuIds, latitude, longitude, radius, top_left, bottom_right)
 
     sort_by = []
     if (latitude) {
@@ -72,7 +90,6 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
 		success: true,
 		message: "Data sent successfully",
 	})
-        // console.log(this.hits)
     })
 }
 
@@ -90,34 +107,7 @@ categoryCounts = function(res, cityId, menuIds, latitude, longitude, radius, top
 
     var countPromises = []
     menuIds.forEach((menuId, index) => {
-        let filter = [{term: {menuId: menuId}}];
-        if (cityId) {
-            filter.push({term: {cityId: cityId}})
-        }
-
-        if (top_left.lat && bottom_right.lat) {
-            filter.push({
-                geo_bounding_box: {
-                    rb_pin: {
-                        top_left: top_left,
-                        bottom_right: bottom_right
-                    },
-                }
-            });
-        }
-
-        if (latitude && longitude && radius) {
-            filter.push({
-                geo_distance: {
-		    distance: radius,
-                    rb_pin: {
-			lat: latitude,
-                        lon: longitude
-                    },
-                }
-            });
-        }
-
+        let filter = createFilter(cityId, menuId, latitude, longitude, radius, top_left, bottom_right)
         countPromises.push(client.count({
             index: "rb_locations",
             body: {
@@ -150,39 +140,9 @@ categoryImpacts = function(res, cityId, menuIds, latitude, longitude, radius, to
 	});
     }
 
-    // If only one param is sent it comes as a scalar
-    menuIds = (menuIds instanceof Array) ?  menuIds : [menuIds];
-
     var countPromises = []
     menuIds.forEach((menuId, index) => {
-        let filter = [{term: {menuId: menuId}}];
-        if (cityId) {
-            filter.push({term: {cityId: cityId}})
-        }
-
-        if (top_left.lat && bottom_right.lat) {
-            filter.push({
-                geo_bounding_box: {
-                    rb_pin: {
-                        top_left: top_left,
-                        bottom_right: bottom_right
-                    },
-                }
-            });
-        }
-
-        if (latitude && longitude && radius) {
-            filter.push({
-                geo_distance: {
-		    distance: radius,
-                    rb_pin: {
-			lat: latitude,
-                        lon: longitude
-                    },
-                }
-            });
-        }
-
+        let filter = createFilter(cityId, menuId, latitude, longitude, radius, top_left, bottom_right)
         countPromises.push(client.search({
             index: "rb_locations",
             body: {
@@ -215,9 +175,10 @@ app.get('/places', (req, res) => {
     let menuIds = req.query.menuData;
     let top_left = {lat: req.query.topLeftLat, lon: req.query.topLeftLon}
     let bottom_right = {lat:req.query.bottomRightLat, lon: req.query.bottomRightLon};
-    latitude = req.query.latitude
-    longitude = req.query.longitude
-    entitySearchSortByDistance(res, cityId, level, menuIds, latitude, longitude, top_left, bottom_right)
+    let latitude = req.query.latitude
+    let longitude = req.query.longitude
+    let radius = req.query.radius
+    entitySearchSortByDistance(res, cityId, level, menuIds, latitude, longitude, radius, top_left, bottom_right)
     return 0;
 });
 
@@ -226,9 +187,9 @@ app.get('/categoryCounts', (req, res) => {
     let menuIds = req.query.menuData;
     let top_left = {lat: req.query.topLeftLat, lon: req.query.topLeftLon}
     let bottom_right = {lat:req.query.bottomRightLat, lon: req.query.bottomRightLon};
-    latitude = req.query.latitude
-    longitude = req.query.longitude
-    radius = req.query.radius
+    let latitude = req.query.latitude
+    let longitude = req.query.longitude
+    let radius = req.query.radius
     categoryCounts(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right)
 
     return 0;
@@ -239,9 +200,9 @@ app.get('/categoryImpacts', (req, res) => {
     let menuIds = req.query.menuData;
     let top_left = {lat: req.query.topLeftLat, lon: req.query.topLeftLon}
     let bottom_right = {lat:req.query.bottomRightLat, lon: req.query.bottomRightLon};
-    latitude = req.query.latitude
-    longitude = req.query.longitude
-    radius = req.query.radius
+    let latitude = req.query.latitude
+    let longitude = req.query.longitude
+    let radius = req.query.radius
     categoryImpacts(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right)
 
     return 0;
