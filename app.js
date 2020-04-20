@@ -11,7 +11,7 @@ const client = new Client({ host: 'localhost:9200' })
 //    next();
 // });
 
-createFilter = function(cityId, menuIds, latitude, localhost, radius, top_left, bottom_right) {
+createFilter = function(cityId, menuIds, latitude, longitude, radius, top_left, bottom_right) {
     // If only one param is sent it comes as a scalar
     menuIds = (menuIds instanceof Array) ?  menuIds : [menuIds];
 
