@@ -1,5 +1,6 @@
 const express = require('express')
 const app = express()
+app.use(express.urlencoded())
 const port = 3000
 
 const { Client } = require('elasticsearch')
@@ -74,7 +75,7 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
     client.search({
         index: "rb_locations",
         size: 1000,
-        _source: ["id", "name", "category", "subcategory", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId", "address", "impact"],
+        _source: ["id", "name", "category", "subcategory", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId", "address", "impact", "closed_at", "closed_by"],
         body: {
             query: {
                 bool: {
@@ -208,6 +209,68 @@ app.get('/categoryImpacts', (req, res) => {
     return 0;
 });
 
+app.get('/containingWard', (req, res) => {
+    let latitude = parseFloat(req.query.latitude)
+    let longitude = parseFloat(req.query.longitude)
 
+    client.search({
+        index: "rb_wards",
+        body: {
+            query: {
+                geo_shape: {
+                    shape: {
+                        shape: {
+                            type: "point",
+                            coordinates : [longitude, latitude]
+                        },
+                        relation: "intersects"
+	            }
+                }
+            }
+        }
+    }).then((body) => {
+        this.hits = body.hits.hits
+        res.json({
+		data: body.hits.hits.map(d => d["_source"]),
+		success: true,
+		message: "Data sent successfully",
+	})
+    })
+});
+
+app.post('/updatePlaceClosed', (req, res) => {
+    let place_org_id = req.body.place_org_id;
+    let closed_at = req.body.closed_at;
+    let closed_by = req.body.closed_by;
+    console.log("updatePlaceClosed:" + "place_org_id = " + place_org_id + "closed_at = ", closed_at + "closed_by = ", closed_by);
+    if (!place_org_id || !closed_by || !closed_at) {
+        res.json({
+            success: false,
+            message: "Missing argument, record not updated.",
+        });
+    }
+
+    client.update({
+        index: "rb_locations",
+        id: place_org_id,
+        body: {
+            doc: {
+	        closed_at: closed_at,
+                closed_by: closed_by,
+	    }
+        }
+    }).then(body => {
+        res.json({
+            success: true,
+            message: "Record updated successfully",
+        });
+    }).catch(error => {
+        console.log("Error: " + error);
+        res.json({
+            success: false,
+            message: "ES error, record not updated." + error,
+        });
+    });
+});
 
 app.listen(port, () => console.log(`Example app listening on port ${port}!`))
