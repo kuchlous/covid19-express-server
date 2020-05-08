@@ -75,7 +75,7 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
     client.search({
         index: "rb_locations",
         size: 1000,
-        _source: ["id", "name", "category", "subcategory", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId", "address", "impact", "closed_at", "closed_by"],
+        _source: ["id", "name", "category", "subcategory", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId", "address", "impact", "closed_at", "closed_by", "phone"],
         body: {
             query: {
                 bool: {
@@ -242,22 +242,32 @@ app.post('/updatePlaceClosed', (req, res) => {
     let place_org_id = req.body.place_org_id;
     let closed_at = req.body.closed_at;
     let closed_by = req.body.closed_by;
+    let subcategory = req.body.subcategory;
     console.log("updatePlaceClosed:" + "place_org_id = " + place_org_id + "closed_at = ", closed_at + "closed_by = ", closed_by);
-    if (!place_org_id || !closed_by || !closed_at) {
+    if (!place_org_id || 
+        (!closed_by && !closed_at && !subcategory)) {
         res.json({
             success: false,
             message: "Missing argument, record not updated.",
         });
     }
 
+    doc = { }
+    if (closed_at) {
+       doc["closed_at"] = closed_at
+    }
+    if (closed_by) {
+       doc["closed_by"] = closed_by
+    }
+    if (subcategory) {
+       doc["subcategory"] = subcategory
+    }
+
     client.update({
         index: "rb_locations",
         id: place_org_id,
         body: {
-            doc: {
-	        closed_at: closed_at,
-                closed_by: closed_by,
-	    }
+            doc: doc
         }
     }).then(body => {
         res.json({
