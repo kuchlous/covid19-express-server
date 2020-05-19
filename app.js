@@ -12,7 +12,7 @@ const client = new Client({ host: 'localhost:9200' })
 //    next();
 // });
 
-createFilter = function(cityId, menuIds, latitude, longitude, radius, top_left, bottom_right) {
+createFilter = function(cityId, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org) {
     // If only one param is sent it comes as a scalar
     menuIds = (menuIds instanceof Array) ?  menuIds : [menuIds];
 
@@ -20,6 +20,10 @@ createFilter = function(cityId, menuIds, latitude, longitude, radius, top_left, 
 
     if (cityId) {
         filter.push({term: {cityId: cityId}})
+    }
+
+    if (creator_org) {
+        filter.push({term: {creator_org: creator_org}})
     }
 
     if (top_left.lat && bottom_right.lat) {
@@ -47,7 +51,7 @@ createFilter = function(cityId, menuIds, latitude, longitude, radius, top_left, 
     return filter;
 }
 
-entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, longitude, radius, top_left, bottom_right) {
+entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org) {
     if (!menuIds || menuIds.length == 0) {
         res.json({
 		data: [],
@@ -56,7 +60,7 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
 	});
     }
 
-    let filter = createFilter(cityId, menuIds, latitude, longitude, radius, top_left, bottom_right)
+    let filter = createFilter(cityId, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org)
 
     sort_by = []
     if (latitude) {
@@ -75,7 +79,7 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
     client.search({
         index: "rb_locations",
         size: 1000,
-        _source: ["id", "name", "category", "subcategory", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId", "address", "impact", "closed_at", "closed_by", "phone"],
+        _source: ["id", "name", "category", "subcategory", "lat", "lng", "total", "type", "data", "wardName", "cityName", "icon", "menuId", "address", "impact", "closed_at", "closed_by", "phone", "created_by", "creator_org"],
         body: {
             query: {
                 bool: {
@@ -94,7 +98,20 @@ entitySearchSortByDistance = function(res, cityId, level, menuIds, latitude, lon
     })
 }
 
-categoryCounts = function(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right) {
+returnOnePlace = function(res, id) {
+    client.get({
+        index: "rb_locations",
+	id: id,
+    }).then((body) => {
+        res.json({
+		data: body._source,
+		success: true,
+		message: "Data sent successfully",
+	})
+    })
+}
+
+categoryCounts = function(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org) {
     if (!menuIds || menuIds.length == 0) {
         res.json({
 		data: [],
@@ -108,7 +125,7 @@ categoryCounts = function(res, cityId, menuIds, latitude, longitude, radius, top
 
     var countPromises = []
     menuIds.forEach((menuId, index) => {
-        let filter = createFilter(cityId, menuId, latitude, longitude, radius, top_left, bottom_right)
+        let filter = createFilter(cityId, menuId, latitude, longitude, radius, top_left, bottom_right, creator_org)
         countPromises.push(client.count({
             index: "rb_locations",
             body: {
@@ -132,7 +149,7 @@ categoryCounts = function(res, cityId, menuIds, latitude, longitude, radius, top
     });
 }
 
-categoryImpacts = function(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right) {
+categoryImpacts = function(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org) {
     if (!menuIds || menuIds.length == 0) {
         res.json({
 		data: [],
@@ -141,9 +158,12 @@ categoryImpacts = function(res, cityId, menuIds, latitude, longitude, radius, to
 	});
     }
 
+    // If only one param is sent it comes as a scalar
+    menuIds = (menuIds instanceof Array) ?  menuIds : [menuIds];
+
     var countPromises = []
     menuIds.forEach((menuId, index) => {
-        let filter = createFilter(cityId, menuId, latitude, longitude, radius, top_left, bottom_right)
+        let filter = createFilter(cityId, menuId, latitude, longitude, radius, top_left, bottom_right, creator_org)
         countPromises.push(client.search({
             index: "rb_locations",
             body: {
@@ -171,6 +191,7 @@ categoryImpacts = function(res, cityId, menuIds, latitude, longitude, radius, to
 }
 
 app.get('/places', (req, res) => {
+    let id = req.query.id;
     let cityId = req.query.cityId;
     let level = req.query.level;
     let menuIds = req.query.menuData;
@@ -179,7 +200,12 @@ app.get('/places', (req, res) => {
     let latitude = req.query.latitude
     let longitude = req.query.longitude
     let radius = req.query.radius
-    entitySearchSortByDistance(res, cityId, level, menuIds, latitude, longitude, radius, top_left, bottom_right)
+    let creator_org = req.query.creatorOrg
+    if (id) {
+      returnOnePlace(res, id);
+      return 0
+    }
+    entitySearchSortByDistance(res, cityId, level, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org)
     return 0;
 });
 
@@ -191,7 +217,8 @@ app.get('/categoryCounts', (req, res) => {
     let latitude = req.query.latitude
     let longitude = req.query.longitude
     let radius = req.query.radius
-    categoryCounts(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right)
+    let creator_org = req.query.creatorOrg
+    categoryCounts(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org)
 
     return 0;
 });
@@ -204,9 +231,28 @@ app.get('/categoryImpacts', (req, res) => {
     let latitude = req.query.latitude
     let longitude = req.query.longitude
     let radius = req.query.radius
-    categoryImpacts(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right)
+    let creator_org = req.query.creatorOrg
+    categoryImpacts(res, cityId, menuIds, latitude, longitude, radius, top_left, bottom_right, creator_org)
 
     return 0;
+});
+
+app.get('/creators', (req, res) => {
+     client.search({
+         index: "rb_creator_orgs",
+         size: 1000,
+         body: {
+              query: {
+                  match_all: {}
+              }
+         }
+     }).then(body => {
+          res.json({
+              data: body.hits.hits.map(d => d["_source"]),
+              success: true,
+              message: "Data sent successfully",
+	  })
+     })
 });
 
 app.get('/containingWard', (req, res) => {
